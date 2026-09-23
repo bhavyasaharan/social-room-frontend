@@ -15,6 +15,7 @@ import ProfilePage from './pages/profile/ProfilePage';
 import FriendsPage from './pages/friends/FriendsPage';
 import MessagesListPage from './pages/chat/MessagesListPage';
 import PrivateChatPage from './pages/chat/PrivateChatPage';
+import PostsPage from './pages/posts/PostsPage';
 
 function App() {
   return (
@@ -57,7 +58,7 @@ function App() {
             }
           />
           <Route
-            path="/profile/:username?"
+            path="/profile/:userId?"
             element={
               <ProtectedRoute>
                 <Layout>
@@ -70,9 +71,7 @@ function App() {
             path="/friends"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <FriendsPage />
-                </Layout>
+                <FriendsPage />
               </ProtectedRoute>
             }
           />
@@ -87,10 +86,20 @@ function App() {
             }
           />
           <Route
-            path="/messages/:userId"
+            path="/messages/:conversationId"
             element={
               <ProtectedRoute>
                 <PrivateChatPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/posts"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <PostsPage />
+                </Layout>
               </ProtectedRoute>
             }
           />

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Home, Users, MessageSquare, LogOut, User } from 'lucide-react';
+import { Home, Users, MessageSquare, LogOut, User, FileText } from 'lucide-react';
 
 const Header = () => {
   const { user, logout } = useAuth();
@@ -13,7 +13,7 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-white shadow-md">
+    <header className="bg-white shadow-md fixed top-0 left-0 right-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -52,6 +52,13 @@ const Header = () => {
               >
                 <User className="h-5 w-5" />
                 <span>Profile</span>
+              </Link>
+              <Link
+                to="/posts"
+                className="flex items-center space-x-1 text-gray-700 hover:text-blue-600 transition-colors"
+              >
+                <FileText className="h-5 w-5" />
+                <span>Feed</span>
               </Link>
               <button
                 onClick={handleLogout}

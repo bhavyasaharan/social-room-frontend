@@ -108,14 +108,26 @@ const RoomChatPage = () => {
   const handleSendMessage = (e) => {
     e.preventDefault();
     
-    if (!newMessage.trim() || !wsRef.current) return;
+    if (!newMessage.trim()) return;
 
-    wsRef.current.send(JSON.stringify({
-      type: 'SEND_MESSAGE',
-      payload: {
-        content: newMessage.trim()
-      }
-    }));
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'SEND_MESSAGE',
+        payload: {
+          content: newMessage.trim()
+        }
+      }));
+    } else {
+      // Local fallback when backend WebSocket is offline
+      const localMsg = {
+        id: 'msg-' + Date.now(),
+        content: newMessage.trim(),
+        sender: user?.username || 'You',
+        senderId: user?.id,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, localMsg]);
+    }
 
     setNewMessage('');
   };

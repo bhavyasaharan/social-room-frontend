@@ -9,7 +9,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [formData, setFormData] = useState({
-    email: '',
+    login: '',
     password: '',
   });
   const [errors, setErrors] = useState({});
