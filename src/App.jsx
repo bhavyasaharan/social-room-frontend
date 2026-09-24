@@ -16,6 +16,11 @@ import FriendsPage from './pages/friends/FriendsPage';
 import MessagesListPage from './pages/chat/MessagesListPage';
 import PrivateChatPage from './pages/chat/PrivateChatPage';
 import PostsPage from './pages/posts/PostsPage';
+import SettingsPage from './pages/settings/SettingsPage';
+import AccountSettingsPage from './pages/settings/AccountSettingsPage';
+import ConnectedAccountsPage from './pages/settings/ConnectedAccountsPage';
+import PasswordSettingsPage from './pages/settings/PasswordSettingsPage';
+import PrivacySettingsPage from './pages/settings/PrivacySettingsPage';
 
 function App() {
   return (
@@ -29,6 +34,56 @@ function App() {
           <Route path="/otp" element={<OTPPage />} />
 
           {/* Protected Routes */}
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <SettingsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/account"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AccountSettingsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+                    <Route
+            path="/settings/account/connected-accounts"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ConnectedAccountsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+  path="/settings/account/password"
+  element={
+    <ProtectedRoute>
+      <Layout>
+        <PasswordSettingsPage />
+      </Layout>
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/settings/privacy"
+  element={
+    <ProtectedRoute>
+      <Layout>
+        <PrivacySettingsPage />
+      </Layout>
+    </ProtectedRoute>
+  }
+/>
           <Route
             path="/rooms"
             element={

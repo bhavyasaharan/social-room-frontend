@@ -498,11 +498,20 @@ const ProfilePage = () => {
                 <div>
                   <h1 className="text-2xl font-bold">{profile?.name || 'User'}</h1>
                 </div>
-                {isOwnProfile && (
-                  <Button onClick={() => setIsEditing(!isEditing)}>
-                    {isEditing ? 'Cancel' : 'Edit Profile'}
-                  </Button>
-                )}
+                  {isOwnProfile && (
+                    <div className="flex items-center space-x-2">
+                      <Button onClick={() => setIsEditing(!isEditing)}>
+                        {isEditing ? 'Cancel' : 'Edit Profile'}
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate('/settings')}
+                      >
+                        Settings
+                      </Button>
+                    </div>
+                  )}
               </div>
             </div>
           </div>
