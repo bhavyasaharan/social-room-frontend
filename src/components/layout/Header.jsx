@@ -1,7 +1,17 @@
+
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Home, Users, MessageSquare, LogOut, User, FileText } from 'lucide-react';
+import {
+  Home,
+  Users,
+  MessageSquare,
+  LogOut,
+  User,
+  FileText
+} from 'lucide-react';
+
+import NotificationBell from '../notifications/NotificationBell';
 
 const Header = () => {
   const { user, logout } = useAuth();
@@ -16,15 +26,20 @@ const Header = () => {
     <header className="bg-white shadow-md fixed top-0 left-0 right-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
+
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
             <Users className="h-8 w-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">Social Room</span>
+            <span className="text-xl font-bold text-gray-900">
+              Social Room
+            </span>
           </Link>
 
           {/* Navigation */}
           {user ? (
             <nav className="flex items-center space-x-4">
+
+              {/* Rooms */}
               <Link
                 to="/rooms"
                 className="flex items-center space-x-1 text-gray-700 hover:text-blue-600 transition-colors"
@@ -32,6 +47,8 @@ const Header = () => {
                 <Home className="h-5 w-5" />
                 <span>Rooms</span>
               </Link>
+
+              {/* Friends */}
               <Link
                 to="/friends"
                 className="flex items-center space-x-1 text-gray-700 hover:text-blue-600 transition-colors"
@@ -39,6 +56,8 @@ const Header = () => {
                 <Users className="h-5 w-5" />
                 <span>Friends</span>
               </Link>
+
+              {/* Messages */}
               <Link
                 to="/messages"
                 className="flex items-center space-x-1 text-gray-700 hover:text-blue-600 transition-colors"
@@ -46,6 +65,11 @@ const Header = () => {
                 <MessageSquare className="h-5 w-5" />
                 <span>Messages</span>
               </Link>
+
+              {/* Notifications */}
+              <NotificationBell />
+
+              {/* Profile */}
               <Link
                 to="/profile"
                 className="flex items-center space-x-1 text-gray-700 hover:text-blue-600 transition-colors"
@@ -53,6 +77,8 @@ const Header = () => {
                 <User className="h-5 w-5" />
                 <span>Profile</span>
               </Link>
+
+              {/* Feed */}
               <Link
                 to="/posts"
                 className="flex items-center space-x-1 text-gray-700 hover:text-blue-600 transition-colors"
@@ -60,6 +86,8 @@ const Header = () => {
                 <FileText className="h-5 w-5" />
                 <span>Feed</span>
               </Link>
+
+              {/* Logout */}
               <button
                 onClick={handleLogout}
                 className="flex items-center space-x-1 text-gray-700 hover:text-red-600 transition-colors"
@@ -67,23 +95,30 @@ const Header = () => {
                 <LogOut className="h-5 w-5" />
                 <span>Logout</span>
               </button>
+
             </nav>
           ) : (
             <nav className="flex items-center space-x-4">
+
+              {/* Login */}
               <Link
                 to="/login"
                 className="text-gray-700 hover:text-blue-600 transition-colors"
               >
                 Login
               </Link>
+
+              {/* Register */}
               <Link
                 to="/register"
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Register
               </Link>
+
             </nav>
           )}
+
         </div>
       </div>
     </header>

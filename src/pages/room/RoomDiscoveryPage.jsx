@@ -8,9 +8,10 @@ import api from '../../services/api';
 
 const RoomDiscoveryPage = () => {
   const navigate = useNavigate();
+
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('ALL'); // ALL, PUBLIC, APPROVAL_REQUIRED
+  const [filter, setFilter] = useState('ALL');
 
   useEffect(() => {
     fetchRooms();
@@ -18,11 +19,18 @@ const RoomDiscoveryPage = () => {
 
   const fetchRooms = async () => {
     setLoading(true);
+
     try {
-      const response = await api.get('/rooms', { params: { type: filter === 'ALL' ? undefined : filter } });
-      setRooms(response.data);
+      const response = await api.get('/rooms', {
+        params: {
+          type: filter === 'ALL' ? undefined : filter,
+        },
+      });
+
+      setRooms(response.data.content || []);
     } catch (error) {
       console.error('Failed to fetch rooms:', error);
+      setRooms([]);
     } finally {
       setLoading(false);
     }
@@ -30,8 +38,13 @@ const RoomDiscoveryPage = () => {
 
   const handleJoinRoom = async (roomId) => {
     try {
-      await api.post(`/rooms/${roomId}/join`);
-      navigate(`/rooms/${roomId}`);
+      const response = await api.post(`/rooms/${roomId}/join`);
+
+      console.log('Join room response:', response.data);
+
+      if (response.data.joined) {
+        navigate(`/rooms/${response.data.roomId}`);
+      }
     } catch (error) {
       console.error('Failed to join room:', error);
     }
@@ -41,10 +54,13 @@ const RoomDiscoveryPage = () => {
     switch (type) {
       case ROOM_TYPES.PUBLIC:
         return <Users className="h-4 w-4" />;
+
       case ROOM_TYPES.APPROVAL_REQUIRED:
         return <Shield className="h-4 w-4" />;
+
       case ROOM_TYPES.PRIVATE:
         return <Lock className="h-4 w-4" />;
+
       default:
         return null;
     }
@@ -54,10 +70,13 @@ const RoomDiscoveryPage = () => {
     switch (type) {
       case ROOM_TYPES.PUBLIC:
         return 'Public';
+
       case ROOM_TYPES.APPROVAL_REQUIRED:
         return 'Approval Required';
+
       case ROOM_TYPES.PRIVATE:
         return 'Private';
+
       default:
         return type;
     }
@@ -66,7 +85,10 @@ const RoomDiscoveryPage = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Discover Rooms</h1>
+        <h1 className="text-3xl font-bold">
+          Discover Rooms
+        </h1>
+
         <Button onClick={() => navigate('/rooms/create')}>
           <Plus className="h-5 w-5 mr-2" />
           Create Room
@@ -82,7 +104,9 @@ const RoomDiscoveryPage = () => {
               size="small"
               onClick={() => setFilter(type)}
             >
-              {type === 'ALL' ? 'All Rooms' : getRoomTypeLabel(type)}
+              {type === 'ALL'
+                ? 'All Rooms'
+                : getRoomTypeLabel(type)}
             </Button>
           ))}
         </div>
@@ -90,33 +114,54 @@ const RoomDiscoveryPage = () => {
 
       {loading ? (
         <div className="text-center py-12">
-          <p className="text-gray-500">Loading rooms...</p>
+          <p className="text-gray-500">
+            Loading rooms...
+          </p>
         </div>
       ) : rooms.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-500">No rooms found. Be the first to create one!</p>
+          <p className="text-gray-500">
+            No rooms found. Be the first to create one!
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {rooms.map((room) => (
-            <Card key={room.id} onClick={() => handleJoinRoom(room.id)}>
+            <Card
+              key={room.roomId}
+              onClick={() => handleJoinRoom(room.roomId)}
+            >
               <div className="flex justify-between items-start mb-3">
-                <h3 className="text-xl font-semibold">{room.name}</h3>
+                <h3 className="text-xl font-semibold">
+                  {room.name}
+                </h3>
+
                 <div className="flex items-center text-sm text-gray-500">
                   {getRoomTypeIcon(room.type)}
-                  <span className="ml-1">{getRoomTypeLabel(room.type)}</span>
+
+                  <span className="ml-1">
+                    {getRoomTypeLabel(room.type)}
+                  </span>
                 </div>
               </div>
-              
-              <p className="text-gray-600 mb-4 line-clamp-2">{room.description}</p>
-              
+
+              <p className="text-gray-600 mb-4 line-clamp-2">
+                {room.description}
+              </p>
+
               <div className="flex justify-between items-center text-sm text-gray-500">
                 <div className="flex items-center">
                   <Users className="h-4 w-4 mr-1" />
-                  <span>{room.memberCount} members</span>
+
+                  <span>
+                    {room.memberCount} members
+                  </span>
                 </div>
+
                 <div>
-                  <span className="font-medium">Leader: {room.leader?.username}</span>
+                  <span className="font-medium">
+                    Leader: {room.currentLeaderUsername}
+                  </span>
                 </div>
               </div>
             </Card>

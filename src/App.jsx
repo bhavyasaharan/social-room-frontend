@@ -21,10 +21,9 @@ import AccountSettingsPage from './pages/settings/AccountSettingsPage';
 import ConnectedAccountsPage from './pages/settings/ConnectedAccountsPage';
 import PasswordSettingsPage from './pages/settings/PasswordSettingsPage';
 import PrivacySettingsPage from './pages/settings/PrivacySettingsPage';
+import { NotificationProvider } from './context/NotificationContext';
 
-function App() {
-  return (
-    <AuthProvider>
+function App() { return ( <AuthProvider> <NotificationProvider>
       <Router>
         <Routes>
           {/* Public Routes */}
@@ -163,8 +162,6 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
-    </AuthProvider>
-  );
-}
+</NotificationProvider> </AuthProvider> ); }
 
 export default App;
