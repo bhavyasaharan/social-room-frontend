@@ -8,7 +8,8 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import OTPPage from './pages/auth/OTPPage';
-import RoomDiscoveryPage from './pages/room/RoomDiscoveryPage';
+import HomePage from './pages/home/HomePage';
+import RoomsPage from './pages/room/RoomsPage';
 import CreateRoomPage from './pages/room/CreateRoomPage';
 import RoomChatPage from './pages/room/RoomChatPage';
 import ProfilePage from './pages/profile/ProfilePage';
@@ -16,6 +17,7 @@ import FriendsPage from './pages/friends/FriendsPage';
 import MessagesListPage from './pages/chat/MessagesListPage';
 import PrivateChatPage from './pages/chat/PrivateChatPage';
 import PostsPage from './pages/posts/PostsPage';
+import AdminPage from './pages/admin/AdminPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import AccountSettingsPage from './pages/settings/AccountSettingsPage';
 import ConnectedAccountsPage from './pages/settings/ConnectedAccountsPage';
@@ -33,6 +35,16 @@ function App() { return ( <AuthProvider> <NotificationProvider>
           <Route path="/otp" element={<OTPPage />} />
 
           {/* Protected Routes */}
+          <Route
+            path="/home"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <HomePage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/settings"
             element={
@@ -88,7 +100,7 @@ function App() { return ( <AuthProvider> <NotificationProvider>
             element={
               <ProtectedRoute>
                 <Layout>
-                  <RoomDiscoveryPage />
+                  <RoomsPage />
                 </Layout>
               </ProtectedRoute>
             }
@@ -107,7 +119,9 @@ function App() { return ( <AuthProvider> <NotificationProvider>
             path="/rooms/:roomId"
             element={
               <ProtectedRoute>
-                <RoomChatPage />
+                <Layout fullScreen>
+                  <RoomChatPage />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -125,7 +139,9 @@ function App() { return ( <AuthProvider> <NotificationProvider>
             path="/friends"
             element={
               <ProtectedRoute>
-                <FriendsPage />
+                <Layout>
+                  <FriendsPage />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -133,7 +149,7 @@ function App() { return ( <AuthProvider> <NotificationProvider>
             path="/messages"
             element={
               <ProtectedRoute>
-                <Layout>
+                <Layout fullScreen>
                   <MessagesListPage />
                 </Layout>
               </ProtectedRoute>
@@ -143,7 +159,9 @@ function App() { return ( <AuthProvider> <NotificationProvider>
             path="/messages/:conversationId"
             element={
               <ProtectedRoute>
-                <PrivateChatPage />
+                <Layout fullScreen>
+                  <MessagesListPage />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -153,6 +171,16 @@ function App() { return ( <AuthProvider> <NotificationProvider>
               <ProtectedRoute>
                 <Layout>
                   <PostsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AdminPage />
                 </Layout>
               </ProtectedRoute>
             }

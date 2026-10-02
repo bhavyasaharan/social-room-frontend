@@ -75,11 +75,12 @@ const LoginPage = () => {
         {
           id: response.data.userId,
           username: response.data.username,
+          role: response.data.role,
         },
         response.data.token
       );
 
-      navigate('/rooms');
+      navigate('/home');
 
     } catch (error) {
       setErrors({
@@ -113,11 +114,12 @@ const LoginPage = () => {
         {
           id: result.data.userId,
           username: result.data.username,
+          role: result.data.role,
         },
         result.data.token
       );
 
-      navigate('/rooms');
+      navigate('/home');
 
     } catch (error) {
       setErrors({

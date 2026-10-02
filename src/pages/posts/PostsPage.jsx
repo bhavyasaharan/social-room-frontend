@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import { Plus, Edit, Trash2, Lock, Globe } from 'lucide-react';
@@ -155,6 +156,7 @@ const CreatePostModal = ({ isOpen, onClose, onPostCreated }) => {
 };
 
 const PostCard = ({ post, onUpdate, onDelete, isOwner }) => {
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [caption, setCaption] = useState(post.caption);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -236,13 +238,21 @@ const PostCard = ({ post, onUpdate, onDelete, isOwner }) => {
       <div className="p-4">
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <div 
+              className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-200"
+              onClick={() => navigate(`/profile/${post.authorId}`)}
+            >
               <span className="text-blue-600 font-medium">
                 {post.authorUsername?.charAt(0).toUpperCase() || '?'}
               </span>
             </div>
             <div>
-              <h3 className="font-semibold">{post.authorUsername || 'User'}</h3>
+              <h3 
+                className="font-semibold cursor-pointer hover:text-blue-600"
+                onClick={() => navigate(`/profile/${post.authorId}`)}
+              >
+                {post.authorUsername || 'User'}
+              </h3>
               <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
             </div>
           </div>

@@ -61,8 +61,8 @@ const LandingPage = () => {
         </div>
 
         {/* 18+ Warning */}
-        <div className="mt-20 bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-          <p className="text-yellow-800 font-medium">
+        <div className="mt-20 bg-rose-950/50 border border-rose-800 rounded-lg p-6 text-center">
+          <p className="text-rose-200 font-medium">
             ⚠️ This platform is 18+ only. By using this platform, you confirm that you are 18 years or older.
           </p>
         </div>

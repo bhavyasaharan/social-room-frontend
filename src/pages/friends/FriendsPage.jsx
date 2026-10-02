@@ -1,22 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/common/Button';
-import Card from '../../components/common/Card';
-import Header from '../../components/layout/Header';
-import { UserPlus, UserMinus, Check, X, MoreVertical, Search, MessageCircle, X as CloseIcon, LayoutGrid } from 'lucide-react';
+import { UserPlus, UserMinus, Check, X, MoreVertical, Search, MessageCircle, X as CloseIcon, Flag } from 'lucide-react';
 import api from '../../services/api';
 
 const FriendProfileView = ({ friend, onClose, onMessage }) => {
   const [profile, setProfile] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [gridLayout, setGridLayout] = useState(1);
-  const [selectedPost, setSelectedPost] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
   const hasFetchedProfile = useRef(false);
-
-  const handleGridLayoutChange = () => {
-    setGridLayout(prev => prev >= 4 ? 1 : prev + 1);
-  };
 
   useEffect(() => {
     if (hasFetchedProfile.current) return;
@@ -29,6 +23,7 @@ const FriendProfileView = ({ friend, onClose, onMessage }) => {
     try {
       const response = await api.get(`/profile/${friend.userId}`);
       setProfile(response.data);
+      fetchPosts();
     } catch (error) {
       console.error('Failed to fetch profile:', error);
     } finally {
@@ -36,10 +31,23 @@ const FriendProfileView = ({ friend, onClose, onMessage }) => {
     }
   };
 
+  const fetchPosts = async () => {
+    setPostsLoading(true);
+    try {
+      const response = await api.get(`/posts/user/${friend.userId}?page=0&size=20`);
+      const postsData = Array.isArray(response.data) ? response.data : (response.data.content || []);
+      setPosts(postsData);
+    } catch (error) {
+      console.error('Failed to fetch posts:', error);
+    } finally {
+      setPostsLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-gray-500">Loading profile...</p>
+        <p style={{ color: '#A9A198' }}>Loading profile...</p>
       </div>
     );
   }
@@ -47,10 +55,10 @@ const FriendProfileView = ({ friend, onClose, onMessage }) => {
   const isPrivate = profile?.privacy?.name === 'PRIVATE';
 
   return (
-    <div className="h-full flex flex-col bg-white border-l border-gray-200">
+    <div className="h-full flex flex-col" style={{ backgroundColor: '#181614', borderLeft: '1px solid #34302C' }}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b-2 border-gray-300 bg-white shadow-sm" style={{ minHeight: '64px', flexShrink: 0 }}>
-        <h2 className="text-xl font-semibold">Profile</h2>
+      <div className="flex items-center justify-between p-4" style={{ minHeight: '64px', flexShrink: 0, borderBottom: '1px solid #34302C', backgroundColor: '#181614' }}>
+        <h2 className="text-xl font-semibold" style={{ color: '#F5F1E8' }}>Profile</h2>
         <div className="flex items-center space-x-2">
           <Button
             onClick={onMessage}
@@ -60,6 +68,15 @@ const FriendProfileView = ({ friend, onClose, onMessage }) => {
           >
             <MessageCircle className="h-4 w-4 mr-2" />
             Message
+          </Button>
+          <Button
+            onClick={() => setShowReportModal(true)}
+            size="sm"
+            variant="outline"
+            className="mr-2"
+          >
+            <Flag className="h-4 w-4 mr-2" />
+            Report
           </Button>
           <button
             onClick={onClose}
@@ -73,11 +90,11 @@ const FriendProfileView = ({ friend, onClose, onMessage }) => {
       {/* Profile Content */}
       <div className="flex-1 overflow-auto p-6">
         {/* Cover Image */}
-        <div className="h-32 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg mb-4" />
+        <div className="h-32 rounded-lg mb-4" style={{ background: 'linear-gradient(to right, #C2526A, #D46B82)' }} />
 
         {/* Profile Header */}
         <div className="flex items-start mb-6">
-          <div className="w-24 h-24 bg-white rounded-full border-4 border-white shadow-lg overflow-hidden flex items-center justify-center bg-purple-100 shrink-0">
+          <div className="w-24 h-24 rounded-full border-4 shadow-lg overflow-hidden flex items-center justify-center shrink-0" style={{ backgroundColor: '#292521', borderColor: '#181614' }}>
             {profile?.profilePicture ? (
               <img
                 src={profile.profilePicture}
@@ -85,25 +102,25 @@ const FriendProfileView = ({ friend, onClose, onMessage }) => {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-2xl font-bold text-purple-600">
+              <span className="text-2xl font-bold" style={{ color: '#C2526A' }}>
                 {profile?.name?.charAt(0).toUpperCase() || '?'}
               </span>
             )}
           </div>
         </div>
 
-        <h1 className="text-2xl font-bold mb-1">{profile?.name || 'User'}</h1>
-        <p className="text-gray-600 mb-4">@{friend.username}</p>
+        <h1 className="text-2xl font-bold mb-1" style={{ color: '#F5F1E8' }}>{profile?.name || 'User'}</h1>
+        <p className="mb-4" style={{ color: '#A9A198' }}>@{friend.username}</p>
 
         {/* Privacy Badge */}
         <div className="flex items-center space-x-2 mb-6">
           {isPrivate ? (
-            <div className="flex items-center text-gray-600">
+            <div className="flex items-center" style={{ color: '#A9A198' }}>
               <MoreVertical className="h-4 w-4 mr-1" />
               <span className="text-sm">Private Profile</span>
             </div>
           ) : (
-            <div className="flex items-center text-gray-600">
+            <div className="flex items-center" style={{ color: '#A9A198' }}>
               <Search className="h-4 w-4 mr-1" />
               <span className="text-sm">Public Profile</span>
             </div>
@@ -114,102 +131,80 @@ const FriendProfileView = ({ friend, onClose, onMessage }) => {
         <div className="space-y-4">
           {profile?.bio && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-2">Bio</h3>
-              <p className="text-gray-600">{profile.bio}</p>
+              <h3 className="font-semibold mb-2" style={{ color: '#F5F1E8' }}>Bio</h3>
+              <p style={{ color: '#A9A198' }}>{profile.bio}</p>
             </div>
           )}
 
-          {profile?.posts && profile.posts.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-gray-900">Posts</h3>
-                <button
-                  onClick={handleGridLayoutChange}
-                  className="flex items-center space-x-1 px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                  title={`${gridLayout} rows`}
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                  <span className="text-sm font-medium">{gridLayout}</span>
-                </button>
-              </div>
-              <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${gridLayout}, 1fr)` }}>
-                {profile.posts.map((post) => (
-                  <div
-                    key={post.id}
-                    onClick={() => setSelectedPost(post)}
-                    className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                  >
-                    {post.media && post.media.length > 0 ? (
-                      <div className="aspect-video bg-gray-100">
-                        {post.media[0].mediaType === 'IMAGE' && (
-                          <img
-                            src={post.media[0].mediaUrl}
-                            alt="Post thumbnail"
-                            className="w-full h-full object-cover"
-                          />
-                        )}
-                      </div>
-                    ) : (
-                      <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                        <span className="text-gray-400 text-sm">No media</span>
-                      </div>
-                    )}
-                    <div className="p-2">
-                      <p className="text-xs text-gray-500">
+          <div>
+            <h3 className="font-semibold mb-2" style={{ color: '#F5F1E8' }}>Posts ({posts.length})</h3>
+            {postsLoading ? (
+              <p style={{ color: '#A9A198' }}>Loading posts...</p>
+            ) : posts.length === 0 ? (
+              <p style={{ color: '#A9A198' }}>No posts yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {posts.map((post) => (
+                  <div key={post.id} className="rounded-lg p-4" style={{ backgroundColor: '#211E1B', border: '1px solid #34302C' }}>
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="text-sm" style={{ color: '#A9A198' }}>
                         {new Date(post.createdAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
                           month: 'short',
                           day: 'numeric',
-                          year: 'numeric'
+                          hour: '2-digit',
+                          minute: '2-digit'
                         })}
                       </p>
                     </div>
+                    <p className="whitespace-pre-wrap mb-3" style={{ color: '#F5F1E8' }}>{post.caption}</p>
+                    {post.media && post.media.length > 0 && (
+                      <div className="mb-3 space-y-2">
+                        {post.media.map((mediaItem, index) => (
+                          <div key={index}>
+                            {mediaItem.mediaType === 'IMAGE' && (
+                              <img
+                                src={mediaItem.mediaUrl}
+                                alt="Post media"
+                                className="w-full rounded-lg max-h-96 object-cover"
+                              />
+                            )}
+                            {mediaItem.mediaType === 'VIDEO' && (
+                              <video
+                                src={mediaItem.mediaUrl}
+                                controls
+                                className="w-full rounded-lg max-h-96"
+                              />
+                            )}
+                            {mediaItem.mediaType === 'AUDIO' && (
+                              <audio
+                                src={mediaItem.mediaUrl}
+                                controls
+                                className="w-full"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Post Detail Modal */}
-      {selectedPost && (
-        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4" onClick={() => setSelectedPost(null)}>
-          <div className="max-w-4xl w-full max-h-full overflow-auto bg-white rounded-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="relative">
-              <button
-                onClick={() => setSelectedPost(null)}
-                className="absolute top-4 right-4 z-10 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-70"
-              >
-                <CloseIcon className="h-6 w-6" />
-              </button>
-              {selectedPost.media && selectedPost.media.length > 0 ? (
-                <div className="w-full">
-                  {selectedPost.media[0].mediaType === 'IMAGE' && (
-                    <img
-                      src={selectedPost.media[0].mediaUrl}
-                      alt="Post"
-                      className="w-full max-h-[70vh] object-contain"
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="w-full h-96 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                  <span className="text-gray-400">No media</span>
-                </div>
-              )}
-              <div className="p-6">
-                <p className="text-gray-800 text-lg mb-3">{selectedPost.caption}</p>
-                <p className="text-sm text-gray-500">
-                  {new Date(selectedPost.createdAt).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </p>
-              </div>
-            </div>
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="rounded-lg p-6 w-full max-w-md" style={{ backgroundColor: '#211E1B', border: '1px solid #34302C' }}>
+            <h2 className="text-xl font-semibold mb-4" style={{ color: '#F5F1E8' }}>Report User</h2>
+            <ReportModalContent
+              targetId={friend.userId}
+              targetType="USER"
+              onClose={() => setShowReportModal(false)}
+            />
           </div>
         </div>
       )}
@@ -217,9 +212,86 @@ const FriendProfileView = ({ friend, onClose, onMessage }) => {
   );
 };
 
+const ReportModalContent = ({ targetId, targetType, onClose }) => {
+  const [reason, setReason] = useState('HARASSMENT');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await api.post('/reports', {
+        targetType,
+        targetId,
+        reason,
+        description
+      });
+      alert('Report submitted successfully');
+      onClose();
+    } catch (error) {
+      console.error('Failed to submit report:', error);
+      alert('Failed to submit report');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Reason
+        </label>
+        <select
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="HARASSMENT">Harassment</option>
+          <option value="HATE_OR_ABUSE">Hate or Abuse</option>
+          <option value="THREATS_OR_VIOLENCE">Threats or Violence</option>
+          <option value="SEXUAL_CONTENT">Sexual Content</option>
+          <option value="SPAM">Spam</option>
+          <option value="SCAM_OR_FRAUD">Scam or Fraud</option>
+          <option value="IMPERSONATION">Impersonation</option>
+          <option value="PRIVACY_VIOLATION">Privacy Violation</option>
+          <option value="ILLEGAL_CONTENT">Illegal Content</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Description
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Please provide more details..."
+          rows="4"
+          maxLength={2000}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      <div className="flex justify-end space-x-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          disabled={loading}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Submitting...' : 'Submit Report'}
+        </Button>
+      </div>
+    </form>
+  );
+};
+
 const FriendsPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('friends');
   const [friends, setFriends] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -231,8 +303,6 @@ const FriendsPage = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [conversationId, setConversationId] = useState(null);
   const lastFetchedTab = useRef(null);
-
-  console.log('FriendsPage rendering, user:', user);
 
   useEffect(() => {
     console.log('useEffect triggered, activeTab:', activeTab);
@@ -299,7 +369,7 @@ const FriendsPage = () => {
   const handleAcceptRequest = async (requestId) => {
     try {
       await api.put(`/friends/requests/${requestId}/accept`);
-      hasFetched.current = false;
+      lastFetchedTab.current = null;
       fetchData();
     } catch (error) {
       console.error('Failed to accept request:', error);
@@ -309,7 +379,7 @@ const FriendsPage = () => {
   const handleRejectRequest = async (requestId) => {
     try {
       await api.put(`/friends/requests/${requestId}/reject`);
-      hasFetched.current = false;
+      lastFetchedTab.current = null;
       fetchData();
     } catch (error) {
       console.error('Failed to reject request:', error);
@@ -319,7 +389,7 @@ const FriendsPage = () => {
   const handleCancelRequest = async (requestId) => {
     try {
       await api.put(`/friends/requests/${requestId}/cancel`);
-      hasFetched.current = false;
+      lastFetchedTab.current = null;
       fetchData();
     } catch (error) {
       console.error('Failed to cancel request:', error);
@@ -328,10 +398,10 @@ const FriendsPage = () => {
 
   const handleRemoveFriend = async (friendId) => {
     if (!confirm('Are you sure you want to remove this friend?')) return;
-    
+
     try {
       await api.delete(`/friends/${friendId}`);
-      hasFetched.current = false;
+      lastFetchedTab.current = null;
       fetchData();
     } catch (error) {
       console.error('Failed to remove friend:', error);
@@ -340,10 +410,10 @@ const FriendsPage = () => {
 
   const handleBlockUser = async (userId) => {
     if (!confirm('Are you sure you want to block this user?')) return;
-    
+
     try {
       await api.post(`/blocks/${userId}`);
-      hasFetched.current = false;
+      lastFetchedTab.current = null;
       fetchData();
     } catch (error) {
       console.error('Failed to block user:', error);
@@ -353,7 +423,7 @@ const FriendsPage = () => {
   const handleSendFriendRequest = async (receiverId) => {
     try {
       await api.post('/friends/requests', { receiverId });
-      hasFetched.current = false;
+      lastFetchedTab.current = null;
       fetchData();
     } catch (error) {
       console.error('Failed to send friend request:', error);
@@ -371,13 +441,14 @@ const FriendsPage = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50" style={{ paddingTop: '64px' }}>
-      <Header />
-      <div className="flex flex-1 overflow-hidden">
+    <div className="flex h-screen flex-col" style={{ backgroundColor: '#121212' }}>
+      <div className="flex flex-1 overflow-hidden pt-4">
         {/* Left Side - Friends List */}
         <div className={`flex-1 ${selectedFriend ? 'w-1/2' : 'w-full'} transition-all duration-300 overflow-y-auto`}>
           <div className="p-6">
-            <h1 className="text-3xl font-bold mb-6">Friends</h1>
+            <h1 className="text-3xl font-bold mb-2" style={{ color: '#F5F1E8' }}>
+              Friends
+            </h1>
 
             {/* Tabs */}
             <div className="flex space-x-2 mb-6">
@@ -385,7 +456,7 @@ const FriendsPage = () => {
                 variant={activeTab === 'friends' ? 'primary' : 'outline'}
                 onClick={() => {
                   setActiveTab('friends');
-                  hasFetched.current = false;
+                  lastFetchedTab.current = null;
                 }}
               >
                 Friends ({friends.length})
@@ -394,7 +465,7 @@ const FriendsPage = () => {
                 variant={activeTab === 'requests' ? 'primary' : 'outline'}
                 onClick={() => {
                   setActiveTab('requests');
-                  hasFetched.current = false;
+                  lastFetchedTab.current = null;
                 }}
               >
                 Requests ({requests.length})
@@ -403,7 +474,7 @@ const FriendsPage = () => {
                 variant={activeTab === 'sent' ? 'primary' : 'outline'}
                 onClick={() => {
                   setActiveTab('sent');
-                  hasFetched.current = false;
+                  lastFetchedTab.current = null;
                 }}
               >
                 Sent ({sentRequests.length})
@@ -412,7 +483,7 @@ const FriendsPage = () => {
                 variant={activeTab === 'search' ? 'primary' : 'outline'}
                 onClick={() => {
                   setActiveTab('search');
-                  hasFetched.current = false;
+                  lastFetchedTab.current = null;
                 }}
               >
                 <Search className="h-4 w-4 mr-2" />
@@ -429,7 +500,12 @@ const FriendsPage = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search users by username..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-4 py-2 rounded-lg focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: '#211E1B',
+                    border: '1px solid #34302C',
+                    color: '#F5F1E8'
+                  }}
                 />
                 <Button type="submit">Search</Button>
               </div>
@@ -438,141 +514,172 @@ const FriendsPage = () => {
 
           {loading ? (
             <div className="text-center py-12">
-              <p className="text-gray-500">Loading...</p>
+              <p style={{ color: '#A9A198' }}>Loading...</p>
             </div>
           ) : (
             <div className="space-y-3">
               {activeTab === 'friends' && friends.map((friend) => (
-                <Card
+                <div
                   key={friend.userId}
                   onClick={() => setSelectedFriend(friend)}
-                  className={`cursor-pointer transition-colors ${selectedFriend?.userId === friend.userId ? 'bg-blue-50 border-blue-500' : 'hover:bg-gray-50'}`}
+                  className={`rounded-lg p-4 cursor-pointer transition-colors ${
+                    selectedFriend?.userId === friend.userId
+                      ? 'border-rose-700'
+                      : 'hover:bg-gray-700'
+                  }`}
+                  style={{
+                    backgroundColor: '#211E1B',
+                    border: selectedFriend?.userId === friend.userId ? '2px solid #C2526A' : '1px solid #34302C'
+                  }}
                 >
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-blue-600 font-medium">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#292521' }}>
+                      <span className="font-medium" style={{ color: '#C2526A' }}>
                         {friend.username.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold">@{friend.username}</h3>
+                      <h3 className="font-semibold" style={{ color: '#F5F1E8' }}>@{friend.username}</h3>
                     </div>
                     <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleRemoveFriend(friend.userId)}
-                        className="text-red-600 hover:text-red-700"
+                        className="hover:opacity-80"
+                        style={{ color: '#D96565' }}
                       >
                         <UserMinus className="h-5 w-5" />
                       </button>
                       <button
                         onClick={() => handleBlockUser(friend.userId)}
-                        className="text-gray-600 hover:text-gray-700"
+                        className="hover:opacity-80"
+                        style={{ color: '#A9A198' }}
                       >
                         <MoreVertical className="h-5 w-5" />
                       </button>
                     </div>
                   </div>
-                </Card>
+                </div>
               ))}
 
               {activeTab === 'requests' && requests.map((request) => (
-                <Card key={request.requestUserId}>
+                <div
+                  key={request.requestUserId}
+                  onClick={() => setSelectedFriend({ userId: request.requestUserId, username: request.username })}
+                  className="rounded-lg p-4 cursor-pointer hover:bg-gray-700 transition-colors"
+                  style={{ backgroundColor: '#211E1B', border: '1px solid #34302C' }}
+                >
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-blue-600 font-medium">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#292521' }}>
+                      <span className="font-medium" style={{ color: '#C2526A' }}>
                         {request.username.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold">@{request.username}</h3>
-                      <p className="text-sm text-gray-600">Status: {request.status}</p>
+                      <h3 className="font-semibold" style={{ color: '#F5F1E8' }}>@{request.username}</h3>
+                      <p className="text-sm" style={{ color: '#A9A198' }}>Status: {request.status}</p>
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleAcceptRequest(request.requestUserId)}
-                        className="text-green-600 hover:text-green-700"
+                        className="hover:opacity-80"
+                        style={{ color: '#62C174' }}
                       >
                         <Check className="h-5 w-5" />
                       </button>
                       <button
                         onClick={() => handleRejectRequest(request.requestUserId)}
-                        className="text-red-600 hover:text-red-700"
+                        className="hover:opacity-80"
+                        style={{ color: '#D96565' }}
                       >
                         <X className="h-5 w-5" />
                       </button>
                     </div>
                   </div>
-                </Card>
+                </div>
               ))}
 
               {activeTab === 'sent' && sentRequests.map((request) => (
-                <Card key={request.requestUserId}>
+                <div
+                  key={request.requestUserId}
+                  onClick={() => setSelectedFriend({ userId: request.requestUserId, username: request.username })}
+                  className="rounded-lg p-4 cursor-pointer hover:bg-gray-700 transition-colors"
+                  style={{ backgroundColor: '#211E1B', border: '1px solid #34302C' }}
+                >
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-blue-600 font-medium">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#292521' }}>
+                      <span className="font-medium" style={{ color: '#C2526A' }}>
                         {request.username.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold">@{request.username}</h3>
-                      <p className="text-sm text-gray-600">Status: {request.status}</p>
+                      <h3 className="font-semibold" style={{ color: '#F5F1E8' }}>@{request.username}</h3>
+                      <p className="text-sm" style={{ color: '#A9A198' }}>Status: {request.status}</p>
                     </div>
                     <button
-                      onClick={() => handleCancelRequest(request.requestUserId)}
-                      className="text-red-600 hover:text-red-700"
+                      onClick={(e) => { e.stopPropagation(); handleCancelRequest(request.requestUserId); }}
+                      className="hover:opacity-80"
+                      style={{ color: '#D96565' }}
                     >
                       <X className="h-5 w-5" />
                     </button>
                   </div>
-                </Card>
+                </div>
               ))}
 
               {activeTab === 'search' && searchResults.map((user) => (
-                <Card key={user.userId}>
+                <div
+                  key={user.userId}
+                  onClick={() => setSelectedFriend({ userId: user.userId, username: user.username })}
+                  className="rounded-lg p-4 cursor-pointer hover:bg-gray-700 transition-colors"
+                  style={{ backgroundColor: '#211E1B', border: '1px solid #34302C' }}
+                >
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-blue-600 font-medium">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#292521' }}>
+                      <span className="font-medium" style={{ color: '#C2526A' }}>
                         {user.username.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold">@{user.username}</h3>
+                      <h3 className="font-semibold" style={{ color: '#F5F1E8' }}>@{user.username}</h3>
                     </div>
                     <button
-                      onClick={() => handleSendFriendRequest(user.userId)}
-                      className="text-blue-600 hover:text-blue-700"
+                      onClick={(e) => { e.stopPropagation(); handleSendFriendRequest(user.userId); }}
+                      className="hover:opacity-80"
+                      style={{ color: '#C2526A' }}
                     >
                       <UserPlus className="h-5 w-5" />
                     </button>
                   </div>
-                </Card>
+                </div>
               ))}
+
             </div>
           )}
 
           {activeTab === 'friends' && friends.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-gray-500">No friends yet. Join rooms to meet people!</p>
+              <p style={{ color: '#A9A198' }}>No friends yet. Join rooms to meet people!</p>
             </div>
           )}
 
           {activeTab === 'requests' && requests.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-gray-500">No pending requests.</p>
+              <p style={{ color: '#A9A198' }}>No pending requests.</p>
             </div>
           )}
 
           {activeTab === 'sent' && sentRequests.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-gray-500">No sent requests.</p>
+              <p style={{ color: '#A9A198' }}>No sent requests.</p>
             </div>
           )}
 
           {activeTab === 'search' && searchResults.length === 0 && searchQuery && (
             <div className="text-center py-12">
-              <p className="text-gray-500">No users found matching "{searchQuery}"</p>
+              <p style={{ color: '#A9A198' }}>No users found matching "{searchQuery}"</p>
             </div>
           )}
+
         </div>
       </div>
 

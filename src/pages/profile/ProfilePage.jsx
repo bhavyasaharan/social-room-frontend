@@ -1,719 +1,447 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import Button from '../../components/common/Button';
-import Card from '../../components/common/Card';
-import { ArrowLeft, Globe, Lock, Plus, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Grid2x2, Lock, MessageSquare, Pencil, Plus, UserPlus, Users, Grid3X3, Columns2, Columns3, Column } from 'lucide-react';
 import api from '../../services/api';
 
+const PROFILE_LAYOUT_STORAGE_KEY = 'social-room-profile-post-layout';
+const LAYOUT_SEQUENCE = [3, 4, 1, 2];
+
+const CreatePostModal = ({ isOpen, onClose, onPostCreated }) => {
+  const [caption, setCaption] = useState('');
+  const [privacy, setPrivacy] = useState('PUBLIC');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleFileSelection = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+
+    try {
+      let media = [];
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        const uploadResponse = await api.post('/upload/image', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        media = [{ mediaUrl: uploadResponse.data, mediaType: 'IMAGE' }];
+      }
+
+      await api.post('/posts', {
+        caption,
+        privacy,
+        media,
+      });
+
+      onPostCreated();
+      onClose();
+      setCaption('');
+      setPrivacy('PUBLIC');
+      setSelectedFile(null);
+      setPreviewUrl(null);
+    } catch (error) {
+      console.error('Failed to create post:', error);
+      alert('Unable to create a post right now.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-xl rounded-2xl border border-[#34302C] bg-[#211E1B] p-6 shadow-2xl">
+        <h2 className="mb-4 text-2xl font-semibold text-[#F5F1E8]">Create Post</h2>
+        <form onSubmit={handleSubmit}>
+          <label htmlFor="post-caption" className="mb-2 block text-sm font-medium text-[#A9A198]">
+            Caption
+          </label>
+          <textarea
+            id="post-caption"
+            value={caption}
+            onChange={(event) => setCaption(event.target.value)}
+            rows={4}
+            placeholder="Share something with your friends..."
+            className="mb-4 w-full rounded-xl border border-[#34302C] bg-[#121212] px-3 py-2.5 text-[#F5F1E8] placeholder:text-[#A9A198] focus:border-[#C2526A] focus:outline-none"
+          />
+
+          <label htmlFor="post-privacy" className="mb-2 block text-sm font-medium text-[#A9A198]">
+            Privacy
+          </label>
+          <select
+            id="post-privacy"
+            value={privacy}
+            onChange={(event) => setPrivacy(event.target.value)}
+            className="mb-4 w-full rounded-xl border border-[#34302C] bg-[#121212] px-3 py-2.5 text-[#F5F1E8] focus:border-[#C2526A] focus:outline-none"
+          >
+            <option value="PUBLIC">Public</option>
+            <option value="PRIVATE">Private</option>
+          </select>
+
+          <label className="mb-2 block text-sm font-medium text-[#A9A198]">Image</label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelection}
+            className="mb-4 block w-full text-sm text-[#A9A198] file:mr-4 file:rounded-xl file:border-0 file:bg-[#C2526A] file:px-4 file:py-2 file:font-semibold file:text-[#121212]"
+          />
+
+          {previewUrl && (
+            <img src={previewUrl} alt="Preview" className="mb-4 h-48 w-full rounded-xl object-cover" />
+          )}
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-[#34302C] bg-[#292521] px-4 py-2 text-sm font-medium text-[#F5F1E8]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="rounded-xl bg-[#C2526A] px-4 py-2 text-sm font-semibold text-[#121212] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? 'Posting...' : 'Post'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const ProfilePage = () => {
-  const navigate = useNavigate();
   const { userId } = useParams();
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+
+  const isOwnProfile = !userId || String(userId) === String(currentUser?.id);
+
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    bio: '',
-    profilePicture: '',
-    privacy: 'PUBLIC',
-  });
   const [posts, setPosts] = useState([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [editingPost, setEditingPost] = useState(null);
-  const [postsLoading, setPostsLoading] = useState(false);
-  const lastFetchedId = useRef(null);
-
-  const isOwnProfile = !userId || userId === currentUser?.id;
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [createPostOpen, setCreatePostOpen] = useState(false);
+  const [friends, setFriends] = useState([]);
+  const [gridColumns, setGridColumns] = useState(() => {
+    const saved = localStorage.getItem(PROFILE_LAYOUT_STORAGE_KEY);
+    if (saved && LAYOUT_SEQUENCE.includes(Number(saved))) return Number(saved);
+    return 3;
+  });
 
   useEffect(() => {
-    const currentTarget = userId || 'me';
-    if (lastFetchedId.current === currentTarget) return;
-    lastFetchedId.current = currentTarget;
+    const fetchProfile = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get(isOwnProfile ? '/profile/me' : `/profile/${userId}`);
+        setProfile(response.data);
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchProfile();
-  }, [userId]);
+  }, [isOwnProfile, userId]);
 
   useEffect(() => {
+    const fetchPosts = async () => {
+      setPostsLoading(true);
+      try {
+        const endpoint = isOwnProfile ? '/posts/me?page=0&size=20' : `/posts/user/${userId}?page=0&size=20`;
+        const response = await api.get(endpoint);
+        setPosts(response.data?.content ?? response.data ?? []);
+      } catch (error) {
+        console.error('Failed to load posts:', error);
+      } finally {
+        setPostsLoading(false);
+      }
+    };
+
+    fetchPosts();
+  }, [isOwnProfile, userId]);
+
+  useEffect(() => {
+    const fetchFriendsPreview = async () => {
+      try {
+        const response = await api.get('/friends?page=0&size=6');
+        setFriends(response.data?.content ?? response.data ?? []);
+      } catch (error) {
+        console.error('Failed to load friends preview:', error);
+      }
+    };
+
     if (isOwnProfile) {
-      fetchPosts();
+      fetchFriendsPreview();
     }
   }, [isOwnProfile]);
 
   useEffect(() => {
-    console.log('Posts state:', posts);
-    console.log('Posts loading:', postsLoading);
-    console.log('Is own profile:', isOwnProfile);
-  }, [posts, postsLoading, isOwnProfile]);
+    localStorage.setItem(PROFILE_LAYOUT_STORAGE_KEY, String(gridColumns));
+  }, [gridColumns]);
 
-  const fetchProfile = async () => {
-    setLoading(true);
-    try {
-      const endpoint = isOwnProfile ? '/profile/me' : `/profile/${userId}`;
-      console.log('Fetching profile from:', endpoint, 'isOwnProfile:', isOwnProfile, 'userId:', userId);
-      const response = await api.get(endpoint);
-      console.log('Profile response:', response.data);
-      setProfile(response.data);
-      setFormData({
-        name: response.data.name || '',
-        bio: response.data.bio || '',
-        profilePicture: response.data.profilePicture || '',
-        privacy: response.data.privacy?.name || 'PUBLIC',
-      });
-    } catch (error) {
-      console.error('Failed to fetch profile:', error);
-    } finally {
-      setLoading(false);
-    }
+  const cycleGridColumns = () => {
+    const currentIndex = LAYOUT_SEQUENCE.indexOf(gridColumns);
+    const nextValue = LAYOUT_SEQUENCE[(currentIndex + 1) % LAYOUT_SEQUENCE.length];
+    setGridColumns(nextValue);
   };
 
-  const handleSave = async () => {
-    try {
-      const response = await api.put('/profile/me', {
-        name: formData.name,
-        bio: formData.bio,
-        profilePicture: formData.profilePicture,
-        privacy: formData.privacy,
-      });
-      setProfile(response.data);
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to update profile:', error);
-    }
-  };
+  const stats = useMemo(() => {
+    const friendCount = profile?.friendsCount ?? profile?.friendCount ?? friends.length ?? 0;
+    const roomCount = profile?.roomsCount ?? profile?.roomCount ?? 0;
+    const postCount = posts.length ?? 0;
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+    return [
+      { label: 'Friends', value: friendCount },
+      { label: 'Rooms', value: roomCount },
+      { label: 'Posts', value: postCount },
+    ];
+  }, [friends.length, posts.length, profile]);
 
-  const fetchPosts = async () => {
-    setPostsLoading(true);
-    try {
-      const response = await api.get('/posts/me?page=0&size=20');
-      console.log('Posts response:', response.data);
-      const postsData = Array.isArray(response.data) ? response.data : (response.data.content || []);
-      console.log('Posts data extracted:', postsData);
-      setPosts(postsData);
-      console.log('Posts set to:', postsData);
-    } catch (error) {
-      console.error('Failed to fetch posts:', error);
-    } finally {
-      setPostsLoading(false);
-    }
-  };
+  const gridClass = useMemo(() => {
+    const map = {
+      1: 'grid-cols-1',
+      2: 'grid-cols-2',
+      3: 'grid-cols-3',
+      4: 'grid-cols-4',
+    };
 
-  const handleCreatePost = async (caption, privacy, media) => {
-    try {
-      await api.post('/posts', {
-        caption,
-        privacy: privacy === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE',
-        media: media
-      });
-      fetchPosts();
-      setShowCreateModal(false);
-    } catch (error) {
-      console.error('Failed to create post:', error);
-    }
-  };
+    return map[gridColumns] ?? 'grid-cols-3';
+  }, [gridColumns]);
 
-  const handleUpdatePost = async (postId, caption, privacy, media) => {
-    try {
-      await api.put(`/posts/${postId}`, {
-        caption,
-        privacy,
-        media
-      });
-      fetchPosts();
-      setShowUpdateModal(false);
-      setEditingPost(null);
-    } catch (error) {
-      console.error('Failed to update post:', error);
-    }
-  };
-
-  const handleDeletePost = async (postId) => {
-    if (!confirm('Are you sure you want to delete this post?')) return;
-    try {
-      await api.delete(`/posts/${postId}`);
-      fetchPosts();
-    } catch (error) {
-      console.error('Failed to delete post:', error);
-    }
-  };
+  const privacyLevel = profile?.privacy === 'PRIVATE' || profile?.privacy?.name === 'PRIVATE';
+  const displayName = profile?.name || profile?.username || 'User';
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-gray-500">Loading profile...</p>
+      <div className="flex h-[calc(100vh-80px)] items-center justify-center bg-[#121212] text-[#A9A198]">
+        Loading profile...
       </div>
     );
   }
 
-  const isPrivate = profile?.privacy?.name === 'PRIVATE';
-
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const CreatePostModal = ({ isOpen, onClose, onCreate }) => {
-    const [caption, setCaption] = useState('');
-    const [privacy, setPrivacy] = useState('PUBLIC');
-    const [media, setMedia] = useState([]);
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [previewUrl, setPreviewUrl] = useState(null);
-    const [loading, setLoading] = useState(false);
-
-    if (!isOpen) return null;
-
-    const handleFileSelect = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        setSelectedFile(file);
-        setPreviewUrl(URL.createObjectURL(file));
-      }
-    };
-
-    const handleUploadImage = async (file) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await api.post('/upload/image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      return response.data;
-    };
-
-    const handleRemoveMedia = (index) => {
-      setMedia(media.filter((_, i) => i !== index));
-    };
-
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      setLoading(true);
-      try {
-        let mediaUrls = [...media];
-        if (selectedFile) {
-          const uploadedUrl = await handleUploadImage(selectedFile);
-          mediaUrls = [{
-            mediaUrl: uploadedUrl,
-            mediaType: 'IMAGE'
-          }];
-        }
-        await onCreate(caption, privacy, mediaUrls);
-        setCaption('');
-        setPrivacy('PUBLIC');
-        setMedia([]);
-        setSelectedFile(null);
-        setPreviewUrl(null);
-      } catch (error) {
-        console.error('Failed to create post:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-          <h2 className="text-xl font-semibold mb-4">Create Post</h2>
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Caption
-              </label>
-              <textarea
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows="4"
-                placeholder="What's on your mind?"
-                maxLength={5000}
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Privacy
-              </label>
-              <select
-                value={privacy}
-                onChange={(e) => setPrivacy(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="PUBLIC">Public</option>
-                <option value="PRIVATE">Private</option>
-              </select>
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Image
-              </label>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  id="profile-file-input"
-                />
-                <label
-                  htmlFor="profile-file-input"
-                  className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors"
-                >
-                  <span className="text-gray-600">
-                    {selectedFile ? selectedFile.name : 'Click to select an image'}
-                  </span>
-                </label>
-              </div>
-              {previewUrl && (
-                <div className="mt-2">
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    className="w-full h-48 object-cover rounded-lg"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedFile(null);
-                      setPreviewUrl(null);
-                    }}
-                    className="mt-2 text-sm text-red-600 hover:text-red-700"
-                  >
-                    Remove image
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end space-x-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                disabled={loading}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? 'Posting...' : 'Post'}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
-  const UpdatePostModal = ({ isOpen, onClose, post, onUpdate }) => {
-    const [caption, setCaption] = useState(post?.caption || '');
-    const [privacy, setPrivacy] = useState(post?.privacy || 'PUBLIC');
-    const [media, setMedia] = useState(post?.media || []);
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [previewUrl, setPreviewUrl] = useState(null);
-    const [loading, setLoading] = useState(false);
-
-    if (!isOpen) return null;
-
-    const handleFileSelect = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        setSelectedFile(file);
-        setPreviewUrl(URL.createObjectURL(file));
-      }
-    };
-
-    const handleUploadImage = async (file) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await api.post('/upload/image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      return response.data;
-    };
-
-    const handleRemoveMedia = (index) => {
-      setMedia(media.filter((_, i) => i !== index));
-    };
-
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      setLoading(true);
-      try {
-        let mediaUrls = [...media];
-        if (selectedFile) {
-          const uploadedUrl = await handleUploadImage(selectedFile);
-          mediaUrls = [{
-            mediaUrl: uploadedUrl,
-            mediaType: 'IMAGE'
-          }];
-        }
-        await onUpdate(post.id, caption, privacy, mediaUrls);
-        setCaption('');
-        setPrivacy('PUBLIC');
-        setMedia([]);
-        setSelectedFile(null);
-        setPreviewUrl(null);
-      } catch (error) {
-        console.error('Failed to update post:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-          <h2 className="text-xl font-semibold mb-4">Update Post</h2>
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Caption
-              </label>
-              <textarea
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows="4"
-                placeholder="What's on your mind?"
-                maxLength={5000}
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Privacy
-              </label>
-              <select
-                value={privacy}
-                onChange={(e) => setPrivacy(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="PUBLIC">Public</option>
-                <option value="PRIVATE">Private</option>
-              </select>
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Change Image (optional)
-              </label>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  id="edit-file-input"
-                />
-                <label
-                  htmlFor="edit-file-input"
-                  className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors"
-                >
-                  <span className="text-gray-600">
-                    {selectedFile ? selectedFile.name : 'Click to select a new image'}
-                  </span>
-                </label>
-              </div>
-              {previewUrl && (
-                <div className="mt-2">
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    className="w-full h-48 object-cover rounded-lg"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedFile(null);
-                      setPreviewUrl(null);
-                    }}
-                    className="mt-2 text-sm text-red-600 hover:text-red-700"
-                  >
-                    Remove new image
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end space-x-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                disabled={loading}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? 'Updating...' : 'Update'}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="max-w-4xl mx-auto p-4">
-      {/* Back Button */}
-      <Button
-        variant="outline"
-        onClick={() => navigate(isOwnProfile ? '/rooms' : '/friends')}
-        className="mb-4"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        {isOwnProfile ? 'Back to Home' : 'Back to Friends'}
-      </Button>
+    <div className="mx-auto max-w-6xl px-4 py-6 pb-24 text-[#F5F1E8]">
+      <div className="mb-6 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => navigate(isOwnProfile ? '/home' : '/friends')}
+          className="inline-flex items-center gap-2 text-sm font-medium text-[#A9A198] transition-colors hover:text-[#F5F1E8]"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {isOwnProfile ? 'Back to home' : 'Back to friends'}
+        </button>
+      </div>
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        {/* Cover Image */}
-        <div className="h-48 bg-gradient-to-r from-blue-500 to-purple-600" />
+      <div className="overflow-hidden rounded-2xl border border-[#34302C] bg-[#211E1B]">
+        <div className="h-32 bg-gradient-to-r from-[#C2526A] via-[#D46B82] to-[#7D2639]" />
 
-        {/* Profile Header */}
-        <div className="px-6 pb-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-end -mt-16 sm:-mt-12">
-            {/* Profile Picture */}
-            <div className="w-32 h-32 bg-white rounded-full border-4 border-white shadow-lg overflow-hidden flex items-center justify-center bg-blue-100">
-              {profile?.profilePicture ? (
-                <img
-                  src={profile.profilePicture}
-                  alt={profile.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-3xl font-bold text-blue-600">
-                  {profile?.name?.charAt(0).toUpperCase() || '?'}
-                </span>
-              )}
-            </div>
-
-            {/* Profile Info */}
-            <div className="mt-4 sm:mt-0 sm:ml-6 flex-1">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-bold">
-                    {profile?.name || 'User'}
-                  </h1>
-                </div>
-
-                {isOwnProfile && (
-                  <div className="flex items-center space-x-2">
-                    <Button onClick={() => setIsEditing(!isEditing)}>
-                      {isEditing ? 'Cancel' : 'Edit Profile'}
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      onClick={() => navigate('/settings')}
-                    >
-                      Settings
-                    </Button>
-                  </div>
+        <div className="px-5 pb-6 pt-0 md:px-8">
+          <div className="-mt-14 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="flex items-end gap-4">
+              <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-[#211E1B] bg-[#292521] text-3xl font-bold text-[#C2526A] md:h-32 md:w-32">
+                {profile?.profilePicture ? (
+                  <img src={profile.profilePicture} alt={displayName} className="h-full w-full object-cover" />
+                ) : (
+                  displayName.charAt(0).toUpperCase()
                 )}
               </div>
-            </div>
-          </div>
 
-          {/* Privacy Badge */}
-          <div className="mt-4 flex items-center space-x-2">
-            {isPrivate ? (
-              <div className="flex items-center text-gray-600">
-                <Lock className="h-4 w-4 mr-1" />
-                <span className="text-sm">Private Profile</span>
+              <div>
+                <h1 className="text-3xl font-bold text-[#F5F1E8]">{displayName}</h1>
+                <p className="text-sm text-[#A9A198]">@{profile?.username ?? currentUser?.username ?? 'user'}</p>
               </div>
+            </div>
+
+            {isOwnProfile ? (
+              <button
+                type="button"
+                onClick={() => navigate('/settings')}
+                className="inline-flex items-center gap-2 rounded-xl border border-[#C2526A] bg-[#C2526A] px-4 py-2 text-sm font-semibold text-[#121212] transition-colors hover:bg-[#D46B82]"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit Profile
+              </button>
             ) : (
-              <div className="flex items-center text-gray-600">
-                <Globe className="h-4 w-4 mr-1" />
-                <span className="text-sm">Public Profile</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#34302C] bg-[#292521] px-4 py-2 text-sm font-medium text-[#F5F1E8] transition-colors hover:bg-[#34302C]"
+                  onClick={() => navigate('/friends')}
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Friends
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#34302C] bg-[#292521] px-4 py-2 text-sm font-medium text-[#F5F1E8] transition-colors hover:bg-[#34302C]"
+                  onClick={() => navigate('/messages')}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Message
+                </button>
               </div>
             )}
           </div>
 
-          {/* Edit Form */}
-          {isEditing && (
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="Your name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+          <p className="mt-5 max-w-2xl text-[#A9A198]">{profile?.bio || 'No bio yet.'}</p>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bio
-                </label>
-                <textarea
-                  name="bio"
-                  value={formData.bio}
-                  onChange={handleChange}
-                  placeholder="Tell us about yourself"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+          <div className="mt-6 grid gap-3 border-y border-[#34302C] py-4 sm:grid-cols-3">
+            {stats.map((stat) => (
+              <div key={stat.label} className="rounded-xl border border-[#34302C] bg-[#121212] p-3 text-center">
+                <div className="text-2xl font-bold text-[#F5F1E8]">{stat.value}</div>
+                <div className="text-xs uppercase tracking-[0.12em] text-[#A9A198]">{stat.label}</div>
               </div>
+            ))}
+          </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Profile Picture URL
-                </label>
-                <input
-                  type="text"
-                  name="profilePicture"
-                  value={formData.profilePicture}
-                  onChange={handleChange}
-                  placeholder="https://example.com/profile-picture.jpg"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Profile Privacy
-                </label>
-                <select
-                  name="privacy"
-                  value={formData.privacy}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="PUBLIC">Public</option>
-                  <option value="PRIVATE">Private</option>
-                </select>
-              </div>
-
-              <Button onClick={handleSave}>Save Changes</Button>
+          {privacyLevel && (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#34302C] bg-[#121212] px-3 py-1.5 text-sm text-[#A9A198]">
+              <Lock className="h-4 w-4 text-[#C2526A]" />
+              Private profile
             </div>
           )}
 
-          {/* Profile Details */}
-          {!isEditing && (
-            <div className="mt-6 space-y-4">
-              {profile?.name && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Name</h3>
-                  <p className="text-gray-600">{profile.name}</p>
-                </div>
-              )}
+          {friends.length > 0 && (
+            <div className="mt-6">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-[#F5F1E8]">Friends</h2>
+                <button
+                  type="button"
+                  onClick={() => navigate('/friends')}
+                  className="inline-flex items-center gap-1 text-sm font-medium text-[#C2526A] transition-colors hover:text-[#D46B82]"
+                >
+                  View all
+                </button>
+              </div>
 
-              {profile?.bio && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Bio</h3>
-                  <p className="text-gray-600">{profile.bio}</p>
-                </div>
-              )}
-
-              {isOwnProfile && (
-                <div>
-                  {console.log('Rendering posts section, posts:', posts, 'loading:', postsLoading, 'length:', posts.length)}
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold text-gray-900">My Posts ({posts.length})</h3>
-                    <Button size="sm" onClick={() => setShowCreateModal(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Post
-                    </Button>
-                  </div>
-                  {postsLoading ? (
-                    <p className="text-gray-500">Loading posts...</p>
-                  ) : posts.length === 0 ? (
-                    <p className="text-gray-500">No posts yet.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {posts.map((post) => (
-                        <Card key={post.id} className="p-4">
-                          <div className="flex justify-between items-start mb-2">
-                            <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => {
-                                  setEditingPost(post);
-                                  setShowUpdateModal(true);
-                                }}
-                                className="text-gray-500 hover:text-blue-600"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeletePost(post.id)}
-                                className="text-gray-500 hover:text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                          <p className="text-gray-800 whitespace-pre-wrap mb-3">{post.caption}</p>
-                          {post.media && post.media.length > 0 && (
-                            <div className="mb-3 space-y-2">
-                              {post.media.map((mediaItem, index) => (
-                                <div key={index}>
-                                  {mediaItem.mediaType === 'IMAGE' && (
-                                    <img
-                                      src={mediaItem.mediaUrl}
-                                      alt="Post media"
-                                      className="w-full rounded-lg max-h-96 object-cover"
-                                    />
-                                  )}
-                                  {mediaItem.mediaType === 'VIDEO' && (
-                                    <video
-                                      src={mediaItem.mediaUrl}
-                                      controls
-                                      className="w-full rounded-lg max-h-96"
-                                    />
-                                  )}
-                                  {mediaItem.mediaType === 'AUDIO' && (
-                                    <audio
-                                      src={mediaItem.mediaUrl}
-                                      controls
-                                      className="w-full"
-                                    />
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <div className="flex items-center space-x-1">
-                            {post.privacy === 'PRIVATE' ? (
-                              <Lock className="h-4 w-4 text-gray-500" />
-                            ) : (
-                              <Globe className="h-4 w-4 text-gray-500" />
-                            )}
-                          </div>
-                        </Card>
-                      ))}
+              <div className="flex flex-wrap gap-3">
+                {friends.slice(0, 6).map((friend) => (
+                  <button
+                    key={friend.userId ?? friend.id}
+                    type="button"
+                    onClick={() => navigate(`/profile/${friend.userId ?? friend.id}`)}
+                    className="flex items-center gap-2 rounded-xl border border-[#34302C] bg-[#121212] px-3 py-2 text-left transition-colors hover:bg-[#292521]"
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#292521] text-xs font-semibold text-[#C2526A]">
+                      {(friend.username ?? friend.name ?? 'U').charAt(0).toUpperCase()}
                     </div>
-                  )}
-                </div>
-              )}
+                    <span className="text-sm text-[#F5F1E8]">@{friend.username ?? friend.name ?? 'user'}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
 
+      <div className="mt-8 rounded-2xl border border-[#34302C] bg-[#211E1B] p-4 md:p-6">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-[#C2526A]" />
+            <h2 className="text-2xl font-semibold text-[#F5F1E8]">Posts</h2>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {isOwnProfile && (
+              <button
+                type="button"
+                onClick={() => setCreatePostOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-[#C2526A] bg-[#C2526A] px-3 py-2 text-sm font-semibold text-[#121212] transition-colors hover:bg-[#D46B82]"
+              >
+                <Plus className="h-4 w-4" />
+                Create Post
+              </button>
+            )}
+
+            <button
+              type="button"
+              aria-label={`Post grid: ${gridColumns} columns. Click to switch to next layout.`}
+              onClick={cycleGridColumns}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#34302C] bg-[#121212] px-3 py-2 text-sm font-medium text-[#F5F1E8] transition-colors hover:bg-[#292521]"
+            >
+              <Grid2x2 className="h-4 w-4 text-[#C2526A]" />
+              {gridColumns}
+            </button>
+          </div>
+        </div>
+
+        {postsLoading ? (
+          <div className="rounded-xl border border-[#34302C] bg-[#121212] p-8 text-center text-[#A9A198]">
+            Loading posts...
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[#34302C] bg-[#121212] p-12 text-center text-[#A9A198]">
+            <p className="mb-4 text-lg text-[#F5F1E8]">No posts yet.</p>
+            {isOwnProfile && (
+              <button
+                type="button"
+                onClick={() => setCreatePostOpen(true)}
+                className="rounded-xl bg-[#C2526A] px-4 py-2 text-sm font-semibold text-[#121212] transition-colors hover:bg-[#D46B82]"
+              >
+                Create Post
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className={`grid gap-3 ${gridClass}`}>
+            {posts.map((post) => {
+              const media = post.media?.[0];
+              const hasVideo = media?.mediaType === 'VIDEO';
+
+              return (
+                <div
+                  key={post.id ?? post.postId}
+                  className="group overflow-hidden rounded-xl border border-[#34302C] bg-[#121212] text-left transition-transform duration-200 hover:-translate-y-0.5 hover:border-[#C2526A]"
+                >
+                  {media ? (
+                    <div className="relative aspect-square overflow-hidden bg-[#211E1B]">
+                      {hasVideo ? (
+                        <video src={media.mediaUrl} className="h-full w-full object-cover" muted playsInline />
+                      ) : (
+                        <img src={media.mediaUrl} alt={post.caption ?? 'Post media'} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex aspect-square items-center justify-center bg-[#121212] p-4 text-center text-sm text-[#A9A198]">
+                      {post.caption || 'No preview'}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between border-t border-[#34302C] bg-[#181614] px-3 py-2 text-xs text-[#A9A198]">
+                    <span className="truncate">{post.caption ? post.caption.slice(0, 28) : 'Post'}</span>
+                    <span className="inline-flex items-center gap-1">
+                      {post.privacy === 'PRIVATE' ? <Lock className="h-3 w-3" /> : <span>•</span>}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <CreatePostModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCreate={handleCreatePost}
-      />
-      <UpdatePostModal
-        isOpen={showUpdateModal}
-        onClose={() => {
-          setShowUpdateModal(false);
-          setEditingPost(null);
+        isOpen={createPostOpen}
+        onClose={() => setCreatePostOpen(false)}
+        onPostCreated={async () => {
+          const response = await api.get(isOwnProfile ? '/posts/me?page=0&size=20' : `/posts/user/${userId}?page=0&size=20`);
+          setPosts(response.data?.content ?? response.data ?? []);
         }}
-        post={editingPost}
-        onUpdate={handleUpdatePost}
       />
     </div>
   );

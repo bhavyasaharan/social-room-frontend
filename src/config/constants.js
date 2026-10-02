@@ -2,6 +2,7 @@ export const API_BASE_URL = '/api';
 
 export const ROOM_TYPES = {
   PUBLIC: 'PUBLIC',
+  FRIENDS: 'FRIENDS',
   APPROVAL_REQUIRED: 'APPROVAL_REQUIRED',
   PRIVATE: 'PRIVATE',
 };

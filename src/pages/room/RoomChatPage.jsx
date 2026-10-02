@@ -8,6 +8,10 @@ import {
   Shield,
   LogOut,
   MoreVertical,
+  UserPlus,
+  X,
+  Play,
+  ArrowUpRight
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
@@ -29,6 +33,13 @@ const RoomChatPage = () => {
 
   const [isLeader, setIsLeader] = useState(false);
   const [showMemberMenu, setShowMemberMenu] = useState(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteUsername, setInviteUsername] = useState('');
+  const [inviting, setInviting] = useState(false);
+
+  const [showPeoplePanel, setShowPeoplePanel] = useState(false);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   const messagesEndRef = useRef(null);
 
@@ -416,41 +427,29 @@ const RoomChatPage = () => {
 
   /*
    * =========================================================
-   * LEAVE ROOM
+   * LEAVE ROOM WITH CONFIRMATION
    * =========================================================
    */
   const handleLeaveRoom = async () => {
-
     try {
+      setLeaving(true);
 
-      await api.delete(
-        `/rooms/${roomId}/leave`
-      );
+      await api.delete(`/rooms/${roomId}/leave`);
 
-      /*
-       * Remove room-specific subscriptions.
-       *
-       * We DO NOT call webSocketService.disconnect()
-       * because NotificationContext may still be using
-       * the same WebSocket connection.
-       */
-      webSocketService.unsubscribe(
-        `/topic/rooms/${roomId}/messages`
-      );
+      webSocketService.unsubscribe(`/topic/rooms/${roomId}/messages`);
+      webSocketService.unsubscribe(`/topic/rooms/${roomId}/members`);
 
-      webSocketService.unsubscribe(
-        `/topic/rooms/${roomId}/members`
-      );
-
+      setShowLeaveDialog(false);
       navigate('/rooms');
 
     } catch (error) {
-
-      console.error(
-        'Failed to leave room:',
-        error
-      );
+      console.error('Failed to leave room:', error);
+      setLeaving(false);
     }
+  };
+
+  const handleLeaveClick = () => {
+    setShowLeaveDialog(true);
   };
 
   /*
@@ -521,6 +520,53 @@ const RoomChatPage = () => {
         'Failed to transfer leadership:',
         error
       );
+    }
+  };
+
+  /*
+   * =========================================================
+   * INVITE USER
+   * =========================================================
+   */
+  const handleInviteUser = async (e) => {
+    e.preventDefault();
+
+    if (!inviteUsername.trim() || inviting) {
+      return;
+    }
+
+    try {
+      setInviting(true);
+
+      // First, search for user by username
+      const searchResponse = await api.get(`/users/search?query=${inviteUsername}`);
+      const users = searchResponse.data.content || searchResponse.data;
+
+      if (!users || users.length === 0) {
+        alert('User not found');
+        return;
+      }
+
+      const targetUser = users.find(u => u.username === inviteUsername);
+      if (!targetUser) {
+        alert('User not found');
+        return;
+      }
+
+      // Invite the user
+      await api.post(`/rooms/${roomId}/invitations`, {
+        userId: targetUser.id
+      });
+
+      alert('Invitation sent successfully');
+      setShowInviteModal(false);
+      setInviteUsername('');
+
+    } catch (error) {
+      console.error('Failed to invite user:', error);
+      alert('Failed to invite user');
+    } finally {
+      setInviting(false);
     }
   };
 
@@ -609,8 +655,8 @@ const RoomChatPage = () => {
   if (loading) {
 
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-500">
+      <div className="flex h-full items-center justify-center" style={{ backgroundColor: '#121212' }}>
+        <p style={{ color: '#A9A198' }}>
           Loading room...
         </p>
       </div>
@@ -625,15 +671,16 @@ const RoomChatPage = () => {
   if (!room) {
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
+      <div className="flex h-full flex-col items-center justify-center" style={{ backgroundColor: '#121212' }}>
 
-        <p className="text-gray-500 mb-4">
+        <p className="mb-4" style={{ color: '#A9A198' }}>
           Room not found.
         </p>
 
         <button
           onClick={() => navigate('/rooms')}
-          className="px-4 py-2 rounded bg-blue-600 text-white"
+          className="px-4 py-2 rounded-lg font-semibold"
+          style={{ backgroundColor: '#C2526A', color: '#121212' }}
         >
           Back to Rooms
         </button>
@@ -648,373 +695,396 @@ const RoomChatPage = () => {
    * =========================================================
    */
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-full min-h-0" style={{ backgroundColor: '#121212' }}>
+      {/* Main Room Workspace */}
+      <div className="flex min-w-0 flex-1 flex-col">
 
-      {/* =====================================================
-          LEFT SIDE - CHAT
-          ===================================================== */}
+        {/* Room Header */}
+        <div className="flex items-center justify-between px-6 py-4" style={{ backgroundColor: '#181614', borderBottom: '1px solid #34302C' }}>
 
-      <div className="flex flex-col flex-1">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleLeaveClick}
+              aria-label="Leave room"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors"
+              style={{ color: '#D96565', backgroundColor: '#292521' }}
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm font-medium">Leave</span>
+            </button>
 
-        {/* Room header */}
-
-        <div className="flex items-center justify-between px-6 py-4 bg-white border-b">
-
-          <div>
-
-            <h1 className="text-xl font-semibold">
-              {room.name}
-            </h1>
-
-            {room.description && (
-              <p className="text-sm text-gray-500">
-                {room.description}
-              </p>
-            )}
-
+            <div>
+              <h1 className="text-xl font-semibold" style={{ color: '#F5F1E8' }}>
+                {room.name}
+              </h1>
+              {room.description && (
+                <p className="text-sm" style={{ color: '#A9A198' }}>
+                  {room.description}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
-
-            <div className="flex items-center text-sm text-gray-500">
-
-              <Users className="w-4 h-4 mr-1" />
-
-              {room.memberCount} members
-
-            </div>
-
             <button
-              onClick={handleLeaveRoom}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 border border-red-200 rounded hover:bg-red-50"
+              onClick={() => setShowPeoplePanel(!showPeoplePanel)}
+              aria-label="View room members"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer"
+              style={{ color: '#F5F1E8', backgroundColor: '#292521' }}
             >
-              <LogOut className="w-4 h-4" />
-              Leave
+              <Users className="w-4 h-4" />
+              <span className="text-sm font-medium">{room.memberCount}</span>
             </button>
 
+            {room.type === 'PRIVATE' && (
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors"
+                style={{ color: '#C2526A', backgroundColor: '#292521' }}
+              >
+                <UserPlus className="w-4 h-4" />
+                <span className="text-sm font-medium">Invite</span>
+              </button>
+            )}
           </div>
 
         </div>
 
-        {/* Messages */}
-
-        <div className="flex-1 overflow-y-auto p-6">
-
-          {messages.length === 0 ? (
-
-            <div className="flex items-center justify-center h-full">
-
-              <p className="text-gray-400">
-                No messages yet. Start the conversation.
-              </p>
-
-            </div>
-
-          ) : (
-
-            <div className="space-y-4">
-
-              {messages.map((message, index) => {
-
-                const senderId =
-                  message.senderId ??
-                  message.userId;
-
-                const isOwnMessage =
-                  senderId === user?.id;
-
-                const senderName =
-                  message.senderUsername ??
-                  message.username ??
-                  (
-                    isOwnMessage
-                      ? user?.username
-                      : 'User'
-                  );
-
-                return (
-                  <div
-                    key={
-                      message.messageId ??
-                      message.id ??
-                      index
-                    }
-                    className={`flex ${
-                      isOwnMessage
-                        ? 'justify-end'
-                        : 'justify-start'
-                    }`}
-                  >
-
-                    <div
-                      className={`max-w-md px-4 py-3 rounded-lg ${
-                        isOwnMessage
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-white text-gray-800'
-                      }`}
-                    >
-
-                      {!isOwnMessage && (
-                        <p className="text-xs font-semibold mb-1 opacity-70">
-                          {senderName}
-                        </p>
-                      )}
-
-                      <p className="break-words">
-                        {message.content}
-                      </p>
-
-                      {message.createdAt && (
-                        <p
-                          className={`text-xs mt-1 ${
-                            isOwnMessage
-                              ? 'text-blue-100'
-                              : 'text-gray-400'
-                          }`}
-                        >
-                          {new Date(
-                            message.createdAt
-                          ).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </p>
-                      )}
-
-                    </div>
-
-                  </div>
-                );
-              })}
-
-              <div ref={messagesEndRef} />
-
-            </div>
-          )}
-
-        </div>
-
-        {/* Message input */}
-
-        <form
-          onSubmit={handleSendMessage}
-          className="flex items-center gap-3 p-4 bg-white border-t"
-        >
-
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(event) =>
-              setNewMessage(event.target.value)
-            }
-            placeholder="Type a message..."
-            className="flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-
-          <button
-            type="submit"
-            disabled={
-              !newMessage.trim() ||
-              sending
-            }
-            className="flex items-center justify-center w-12 h-12 rounded-lg bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Send className="w-5 h-5" />
-          </button>
-
-        </form>
-
-      </div>
-
-      {/* =====================================================
-          RIGHT SIDE - MEMBERS
-          ===================================================== */}
-
-      <div className="w-80 bg-white border-l flex flex-col">
-
-        {/* Members header */}
-
-        <div className="px-5 py-4 border-b">
-
-          <div className="flex items-center gap-2">
-
-            <Users className="w-5 h-5" />
-
-            <h2 className="font-semibold">
-              Members
+        {/* Room Content Area */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto p-6">
+            <h2 className="text-lg font-semibold mb-4" style={{ color: '#F5F1E8' }}>
+              ROOM CONTENT
             </h2>
 
-            <span className="text-sm text-gray-500">
-              ({members.length})
-            </span>
+            {/* Content Player Placeholder */}
+            <div
+              className="rounded-lg flex items-center justify-center mb-4"
+              style={{
+                backgroundColor: '#211E1B',
+                border: '1px solid #34302C',
+                aspectRatio: '16 / 9',
+                minHeight: '300px'
+              }}
+            >
+              <div className="text-center">
+                <Play className="h-12 w-12 mx-auto mb-2" style={{ color: '#A9A198' }} />
+                <p style={{ color: '#A9A198' }}>Nothing is playing</p>
+                <p className="text-sm mt-1" style={{ color: '#A9A198' }}>Room content will appear here</p>
+              </div>
+            </div>
 
+            {/* Now Playing */}
+            <div className="mb-6">
+              <h3 className="text-sm font-medium mb-2" style={{ color: '#A9A198' }}>
+                Now Playing
+              </h3>
+              <p className="text-lg font-semibold" style={{ color: '#F5F1E8' }}>
+                {room.name}
+              </p>
+            </div>
           </div>
 
-        </div>
+          {/* Chat Section */}
+          <div className="border-t" style={{ borderColor: '#34302C' }}>
+            <div className="max-w-4xl mx-auto p-6">
+              <h2 className="text-lg font-semibold mb-4" style={{ color: '#F5F1E8' }}>
+                CHAT
+              </h2>
 
-        {/* Member list */}
-
-        <div className="flex-1 overflow-y-auto">
-
-          {members.length === 0 ? (
-
-            <div className="p-5 text-sm text-gray-500">
-              No members found.
-            </div>
-
-          ) : (
-
-            <div className="divide-y">
-
-              {members.map((member) => {
-
-                const memberId =
-                  member.userId ??
-                  member.id;
-
-                const memberUsername =
-                  member.username ??
-                  member.user?.username ??
-                  `User ${memberId}`;
-
-                const memberIsLeader =
-                  room.currentLeaderId === memberId;
-
-                const memberIsCurrentUser =
-                  memberId === user?.id;
-
-                return (
-                  <div
-                    key={
-                      member.roomMemberId ??
-                      member.id ??
-                      member.userId
-                    }
-                    className="relative flex items-center justify-between px-5 py-4"
-                  >
-
-                    <div className="flex items-center gap-3">
-
-                      {/* Avatar */}
-
-                      <div className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-200">
-
-                        <span className="text-sm font-semibold">
-                          {memberUsername
-                            ?.charAt(0)
-                            ?.toUpperCase()}
-                        </span>
-
-                      </div>
-
-                      {/* User information */}
-
-                      <div>
-
-                        <div className="flex items-center gap-2">
-
-                          <p className="font-medium text-sm">
-                            {memberUsername}
-                          </p>
-
-                          {memberIsCurrentUser && (
-                            <span className="text-xs text-gray-400">
-                              You
-                            </span>
-                          )}
-
-                        </div>
-
-                        {/* Leader */}
-
-                        {memberIsLeader && (
-                          <div className="flex items-center gap-1 text-xs text-yellow-600">
-
-                            <Crown className="w-3 h-3" />
-
-                            Leader
-
-                          </div>
-                        )}
-
-                        {/* Moderator */}
-
-                        {member.role === 'MODERATOR' && (
-                          <div className="flex items-center gap-1 text-xs text-blue-600">
-
-                            <Shield className="w-3 h-3" />
-
-                            Moderator
-
-                          </div>
-                        )}
-
-                      </div>
-
-                    </div>
-
-                    {/* Leader actions */}
-
-                    {isLeader &&
-                      !memberIsCurrentUser && (
-
-                      <div className="relative">
-
-                        <button
-                          onClick={() =>
-                            setShowMemberMenu(
-                              showMemberMenu === memberId
-                                ? null
-                                : memberId
-                            )
-                          }
-                          className="p-2 rounded hover:bg-gray-100"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-
-                        {showMemberMenu === memberId && (
-
-                          <div className="absolute right-0 top-10 z-10 w-48 bg-white border rounded-lg shadow-lg">
-
-                            <button
-                              onClick={() =>
-                                handleTransferLeadership(
-                                  memberId
-                                )
-                              }
-                              className="block w-full text-left px-4 py-3 text-sm hover:bg-gray-50"
-                            >
-                              Transfer leadership
-                            </button>
-
-                            <button
-                              onClick={() =>
-                                handleKickMember(
-                                  memberId
-                                )
-                              }
-                              className="block w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50"
-                            >
-                              Kick member
-                            </button>
-
-                          </div>
-                        )}
-
-                      </div>
-                    )}
-
+              {/* Messages */}
+              <div
+                className="overflow-y-auto mb-4"
+                style={{ maxHeight: '400px', backgroundColor: '#181614', borderRadius: '8px', padding: '16px' }}
+              >
+                {messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p style={{ color: '#A9A198' }}>
+                      No messages yet. Start the conversation.
+                    </p>
                   </div>
-                );
-              })}
+                ) : (
+                  <div className="space-y-4">
+                    {messages.map((message, index) => {
+                      const senderId = message.senderId ?? message.userId;
+                      const isOwnMessage = senderId === user?.id;
+                      const senderName = message.senderUsername ?? message.username ?? (isOwnMessage ? user?.username : 'User');
 
+                      return (
+                        <div
+                          key={message.messageId ?? message.id ?? index}
+                          className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div className="max-w-md">
+                            {!isOwnMessage && (
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: '#292521' }}>
+                                  <span className="text-xs font-medium" style={{ color: '#C2526A' }}>
+                                    {senderName?.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <span className="text-sm font-medium" style={{ color: '#F5F1E8' }}>
+                                  {senderName}
+                                </span>
+                              </div>
+                            )}
+                            <div
+                              className={`px-4 py-3 rounded-lg ${
+                                isOwnMessage
+                                  ? 'ml-auto'
+                                  : ''
+                              }`}
+                              style={{
+                                backgroundColor: isOwnMessage ? '#C2526A' : '#211E1B',
+                                color: isOwnMessage ? '#121212' : '#F5F1E8'
+                              }}
+                            >
+                              <p className="break-words">{message.content}</p>
+                              {message.createdAt && (
+                                <p
+                                  className={`text-xs mt-1 ${
+                                    isOwnMessage ? 'opacity-70' : ''
+                                  }`}
+                                  style={{ color: isOwnMessage ? '#121212' : '#A9A198' }}
+                                >
+                                  {new Date(message.createdAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
+              </div>
+
+              {/* Message Input */}
+              <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(event) => setNewMessage(event.target.value)}
+                  placeholder="Write something..."
+                  className="flex-1 px-4 py-3 rounded-lg focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: '#211E1B',
+                    border: '1px solid #34302C',
+                    color: '#F5F1E8'
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={!newMessage.trim() || sending}
+                  className="flex items-center justify-center w-12 h-12 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: '#C2526A', color: '#121212' }}
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </form>
             </div>
-          )}
-
+          </div>
         </div>
-
       </div>
+
+      {/* People Panel (right side, not overlay) */}
+      {showPeoplePanel && (
+        <div className="fixed inset-y-0 right-0 w-80 z-40 md:relative md:w-80 md:z-auto flex flex-col" style={{ backgroundColor: '#181614', borderLeft: '1px solid #34302C' }}>
+          {/* Mobile overlay */}
+          <div
+            className="absolute inset-0 bg-black bg-opacity-50 -left-full md:hidden"
+            onClick={() => setShowPeoplePanel(false)}
+          />
+          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #34302C' }}>
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5" style={{ color: '#F5F1E8' }} />
+              <h2 className="font-semibold" style={{ color: '#F5F1E8' }}>
+                People
+              </h2>
+              <span className="text-sm" style={{ color: '#A9A198' }}>
+                ({members.length})
+              </span>
+            </div>
+            <button
+              onClick={() => setShowPeoplePanel(false)}
+              aria-label="Close members panel"
+              className="p-2 rounded-lg hover:bg-gray-700 transition-colors"
+              style={{ color: '#F5F1E8' }}
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {members.length === 0 ? (
+              <div className="p-5 text-sm" style={{ color: '#A9A198' }}>
+                No members found.
+              </div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: '#34302C' }}>
+                {members.map((member) => {
+                  const memberId = member.userId ?? member.id;
+                  const memberUsername = member.username ?? member.user?.username ?? `User ${memberId}`;
+                  const memberIsLeader = room.currentLeaderId === memberId;
+                  const memberIsCurrentUser = memberId === user?.id;
+
+                  return (
+                    <div
+                      key={member.roomMemberId ?? member.id ?? member.userId}
+                      className="relative flex items-center justify-between px-5 py-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-9 h-9 rounded-full" style={{ backgroundColor: '#292521' }}>
+                          <span className="text-sm font-semibold" style={{ color: '#C2526A' }}>
+                            {memberUsername?.charAt(0)?.toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm" style={{ color: '#F5F1E8' }}>
+                              {memberUsername}
+                            </p>
+                            {memberIsCurrentUser && (
+                              <span className="text-xs" style={{ color: '#A9A198' }}>
+                                You
+                              </span>
+                            )}
+                          </div>
+                          {memberIsLeader && (
+                            <div className="flex items-center gap-1 text-xs" style={{ color: '#C2526A' }}>
+                              <Crown className="w-3 h-3" />
+                              Leader
+                            </div>
+                          )}
+                          {member.role === 'MODERATOR' && (
+                            <div className="flex items-center gap-1 text-xs" style={{ color: '#62C174' }}>
+                              <Shield className="w-3 h-3" />
+                              Moderator
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {isLeader && !memberIsCurrentUser && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowMemberMenu(showMemberMenu === memberId ? null : memberId)}
+                            className="p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                            style={{ color: '#F5F1E8' }}
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+
+                          {showMemberMenu === memberId && (
+                            <div className="absolute right-0 top-10 z-10 w-48 rounded-lg shadow-lg" style={{ backgroundColor: '#211E1B', border: '1px solid #34302C' }}>
+                              <button
+                                onClick={() => handleTransferLeadership(memberId)}
+                                className="block w-full text-left px-4 py-3 text-sm hover:bg-gray-700 transition-colors"
+                                style={{ color: '#F5F1E8' }}
+                              >
+                                Transfer leadership
+                              </button>
+                              <button
+                                onClick={() => handleKickMember(memberId)}
+                                className="block w-full text-left px-4 py-3 text-sm hover:bg-gray-700 transition-colors"
+                                style={{ color: '#D96565' }}
+                              >
+                                Kick member
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Leave Room Confirmation Dialog */}
+      {showLeaveDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="rounded-lg p-6 w-full max-w-md" style={{ backgroundColor: '#211E1B', border: '1px solid #34302C' }}>
+            <h2 className="text-xl font-semibold mb-2" style={{ color: '#F5F1E8' }}>
+              Leave this room?
+            </h2>
+            <p className="mb-6" style={{ color: '#A9A198' }}>
+              You're currently in {room.name}. If you leave, you'll stop being a member of this room.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowLeaveDialog(false)}
+                disabled={leaving}
+                className="px-4 py-2 rounded-lg font-medium transition-colors"
+                style={{ color: '#F5F1E8', backgroundColor: '#292521' }}
+              >
+                Stay
+              </button>
+              <button
+                onClick={handleLeaveRoom}
+                disabled={leaving}
+                className="px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                style={{ backgroundColor: '#D96565', color: '#F5F1E8' }}
+              >
+                {leaving ? 'Leaving...' : 'Leave Room'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="rounded-lg p-6 w-full max-w-md" style={{ backgroundColor: '#211E1B', border: '1px solid #34302C' }}>
+            <h2 className="text-xl font-semibold mb-4" style={{ color: '#F5F1E8' }}>Invite User to Room</h2>
+            <form onSubmit={handleInviteUser}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2" style={{ color: '#A9A198' }}>
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={inviteUsername}
+                  onChange={(e) => setInviteUsername(e.target.value)}
+                  placeholder="Enter username"
+                  className="w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2"
+                  style={{ backgroundColor: '#292521', border: '1px solid #34302C', color: '#F5F1E8' }}
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowInviteModal(false);
+                    setInviteUsername('');
+                  }}
+                  disabled={inviting}
+                  className="px-4 py-2 rounded-lg font-medium transition-colors"
+                  style={{ color: '#F5F1E8', backgroundColor: '#292521' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={inviting}
+                  className="px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: '#C2526A', color: '#121212' }}
+                >
+                  {inviting ? 'Inviting...' : 'Invite'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
